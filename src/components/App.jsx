@@ -26,7 +26,7 @@ export class App extends Component {
       >
         <Searchbar onSubmit={this.handleFormSubmit} />
         <ToastContainer autoClose={2000} position="top-right" theme="light" />
-        <ImageGallery searchValue={this.state.searchValue} onClick={this.toggleModal}/>
+        <ImageGallery searchValue={this.state.searchValue}/>
       </Box>
     );
   };
