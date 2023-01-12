@@ -1,4 +1,7 @@
 import React, { Component } from "react";
+import PropTypes from 'prop-types';
+import { toast } from "react-toastify";
+import 'react-toastify/dist/ReactToastify.css';
 import { ImageGalleryItem } from "./ImageGalleryItem";
 import imagesApi from '../../api/image-searcher-api';
 import { Modal } from '../Modal';
@@ -7,9 +10,12 @@ import { Loader } from "components/Loader";
 import { Button } from "components/Button";
 
 export class ImageGallery extends Component {
+    static propTypes = {
+    searchValue: PropTypes.string.isRequired,
+  };
     state = {
         error: null,
-        status: 'idle',
+        loading: false,
         showModal: false,
         showLoadMoreBtn: false,
         value: '',
@@ -17,7 +23,6 @@ export class ImageGallery extends Component {
         page: 1,
         totalHits: 0,
     };
-    // totalPages = 0;
     currentLargeImg = '';
     currentAlt = '';
 
@@ -30,10 +35,10 @@ export class ImageGallery extends Component {
         const { searchValue } = this.props;
         if (prevProps.searchValue !== searchValue) {
             this.setState({
-                // error: null,
-                // showModal: false,
-                // dataForModal: null,
-                // showLoadMoreBtn: false,
+                error: null,
+                loading: false,
+                showModal: false,
+                showLoadMoreBtn: false,
                 value: searchValue,
                 images: [],
                 page: 1,
@@ -43,20 +48,22 @@ export class ImageGallery extends Component {
 
         //всегда нужно делать проверку, иначе упадет приложение
         const { page, value } = this.state;
-        const changePage = prevState.page !== page;
-        const changeValue = prevState.value !== value;
+        // const changePage = prevState.page !== page;
+        // const changeValue = prevState.value !== value;
         // const prevSearchValue = prevProps.searchValue;
         // const nextSearchValue = this.props.searchValue;
         // const prevPage = prevState.page;
         // const nextPage = this.state.page;
         // if (prevSearchValue !== nextSearchValue || prevPage !== nextPage) {
-        if( changePage || changeValue) {
-            this.setState({ status: 'pending' });
+        if( prevState.page !== page || prevState.value !== value) {
+            this.setState({ loading: true });
             imagesApi.fetchImages(value, page)
-                .then(({hits, totalHits}) => {
+                .then(({ hits, totalHits }) => {
                     if (!hits.length) {
-                        this.setState({ status: 'empty' })
-                        return;
+                        return Promise.reject(
+                            toast.error(`No photos for search query: ${value}`)
+                            // new Error(`No photos for search query: ${value}`)
+                        );
                     }
                     const imagesForLoadMore = hits.map(
                         ({ id, tags, webformatURL, largeImageURL }) => ({
@@ -69,15 +76,15 @@ export class ImageGallery extends Component {
                     // console.log('imagesForLoadMore: ', imagesForLoadMore);
                     this.setState(prevState => ({
                         images: [...prevState.images, ...imagesForLoadMore],
-                        status: 'resolved',
-                        showLoadMoreBtn: true,
+                        // status: 'resolved',
+                        // showLoadMoreBtn: true,
                         totalHits,
                     }));
                     // console.log('images: ', this.state.images);
                     
                 })
-                .catch(error => this.setState({ error, status: 'rejected', totalHits: 0 }));
-                // .finally(() => this.setState({ loading: false }));
+                .catch(error => this.setState({ error, totalHits: 0 }))
+                .finally(() => this.setState({ loading: false }));
         }
     }
 
@@ -87,11 +94,16 @@ export class ImageGallery extends Component {
         }));
     };
 
-    toggleLoadMoreBtn = () => {
-        this.setState(({ showLoadMoreBtn }) => ({
-            showLoadMoreBtn: !showLoadMoreBtn
-        }));
-    }
+    // openLoadMoreBtn = () => {
+    //     this.setState(({ showLoadMoreBtn }) => ({
+    //         showLoadMoreBtn: true,
+    //     }));
+    // }
+    // openLoadMoreBtn = () => {
+    //     this.setState(({ showLoadMoreBtn }) => ({
+    //         showLoadMoreBtn: true,
+    //     }));
+    // }
 
     onLoadMoreBtnClick = () => {
         this.setState(prevState => ({ page: prevState.page + 1 }));
@@ -103,29 +115,11 @@ export class ImageGallery extends Component {
         this.toggleModal();
     }
     
-
     render() {
-        const { images, error, status, showModal, showLoadMoreBtn } = this.state;
+        const { images, error, showModal, totalHits, loading } = this.state;
         
-        //Статус "в простое"
-        if (status === 'idle') {
-            return <p>Enter something for search!</p>;
-        }
-        //Статус "Ожидаем"
-        if (status === 'pending') {
-            return <Loader />;
-        }
-        //Статус "Пусто"
-        if (status === 'empty') {
-            return <p>There are no images on your search</p>
-        }
-        //Статус "Отклонено"
-        if (status === 'rejected') {
-            return <p>{error.message}</p>
-        }
-        //Статус "Виконано"
-        if (status === 'resolved') {
-            return (<>
+        return (<>
+            {!error && (
                 <ImageGalleryList onClick={this.onImgClick}>
                     {images.map(({ id, tags, webformatURL, largeImageURL }) => (
                         <ImageGalleryItem
@@ -136,14 +130,16 @@ export class ImageGallery extends Component {
                             largeImageURL={largeImageURL}
                         />
                     ))}
-                </ImageGalleryList>
-                {showLoadMoreBtn && <Button onClick={this.onLoadMoreBtnClick}>LoadMore</Button>}
+                </ImageGalleryList>)}
+            {loading && (<Loader />)}
+            {images.length < totalHits && (
+                <Button onClick={this.onLoadMoreBtnClick}>LoadMore</Button>
+            )}
                 
-                {showModal && <Modal onClose={this.toggleModal} >
-                    <img src={this.currentLargeImg} alt={this.currentAlt} />
-                </Modal>}
-            </>
-            );
-        }
-    }
-}
+            {showModal && <Modal onClose={this.toggleModal} >
+                <img src={this.currentLargeImg} alt={this.currentAlt} />
+            </Modal>}
+        </>
+        );
+    };
+};
